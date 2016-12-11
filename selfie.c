@@ -202,6 +202,7 @@ int numberOfWrittenCharacters = 0;
 
 int* outputName = (int*) 0;
 int  outputFD   = 1;
+int  lock;
 
 // ------------------------- INITIALIZATION ------------------------
 
@@ -842,6 +843,12 @@ void implementPrintInteger();
 void emitThreadStart();
 void implementThreadStart();
 
+void emitLock();
+void implementLock();
+
+void emitUnlock();
+void implementUnlock();
+
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 int debug_read   = 0;
@@ -862,6 +869,10 @@ int SYSCALL_GET_PID = 4039;
 
 int SYSCALL_PRINT_INTEGER = 5001;
 int SYSCALL_THREAD_START = 5002;
+
+
+int SYSCALL_LOCK = 6001;
+int SYSCALL_UNLOCK = 6002;
 
 // -----------------------------------------------------------------
 // ----------------------- HYPSTER SYSCALLS ------------------------
@@ -1162,6 +1173,7 @@ void switchContext(int* from, int* to);
 
 void freeContext(int* context);
 int* deleteContext(int* context, int* from);
+int* deleteFromContextList(int* context, int* from);
 
 void traverseContexts(int* ctxHead);
 
@@ -1231,8 +1243,9 @@ int bumpID; // counter for generating unique context IDs
 
 int* currentContext = (int*) 0; // context currently running
 
-int* usedContexts = (int*) 0; // doubly-linked list of used contexts
-int* freeContexts = (int*) 0; // singly-linked list of free contexts
+int* usedContexts = (int*) 0;   // doubly-linked list of used contexts
+int* freeContexts = (int*) 0;   // singly-linked list of free contexts
+int* blockedContexts = (int*) 0; // linked list for blocked contexts
 
 // ------------------------- INITIALIZATION ------------------------
 
@@ -4061,6 +4074,8 @@ void selfie_compile() {
 	emitGetPID();
 	emitPrintInteger();
 	emitThreadStart();
+  emitLock();
+  emitUnlock();
 
   emitID();
   emitCreate();
@@ -5105,7 +5120,7 @@ void implementSchedYield() { // TODO: should we change method type to int?
 
 void emitGetPID() {
   // create entry in symboltable for sched_yield
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "getPID", 0, PROCEDURE, INT_T, 0, binaryLength); // use INT_T, as sched_yield should return an integer value
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "getPID", 0, PROCEDURE, INT_T, 0, binaryLength); 
 
   // load correct syscall number
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_GET_PID);
@@ -5118,7 +5133,7 @@ void emitGetPID() {
 
 void implementGetPID() {
 
-	print((int*) "Get PID ");	printInteger(getID(currentContext)); println();
+	print((int*) "###########Get PID ");	printInteger(getID(currentContext)); println();
 
 	*(registers+REG_V0) = getID(currentContext);
 }
@@ -5167,6 +5182,58 @@ void implementThreadStart() {
 
 	print((int*) "Started thread "); printInteger(bumpID); println();
   traverseContexts(usedContexts);
+}
+
+void emitLock() {
+  // create entry in symboltable for lock
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "lock", 0, PROCEDURE, VOID_T, 0, binaryLength);
+
+  // load correct syscall number
+  emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_LOCK);
+  // invoke the syscall
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
+
+  // jump back to caller
+  emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
+}
+
+void implementLock() {
+  int pid;
+
+  if(lock == 0){
+      //lock setzten
+      print((int*) "###########Lock aquire ");
+      lock = 1;
+  }
+  else{
+      //aktuellen Prozess in waiting list einfügen und aus ready List nehmen
+      pid = getID(currentContext);
+      blockedContexts = findContext(pid, usedContexts);
+      usedContexts = deleteFromContextList(currentContext, usedContexts);
+  }
+
+
+}
+
+void emitUnlock() {
+  // create entry in symboltable for unlock
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "unlock", 0, PROCEDURE, VOID_T, 0, binaryLength);
+
+  // load correct syscall number
+  emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_UNLOCK);
+  // invoke the syscall
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
+
+  // jump back to caller
+  emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
+}
+
+void implementUnlock() {
+
+  //alle Prozesse aus der waiting List nehmen und in ready List einfügen
+
+  lock = 0;
+
 }
 
 
@@ -5698,6 +5765,10 @@ void fct_syscall() {
     	implementPrintInteger();
     else if(*(registers+REG_V0) == SYSCALL_THREAD_START)
     	implementThreadStart();
+    else if(*(registers+REG_V0) == SYSCALL_LOCK)
+    	implementLock();
+    else if(*(registers+REG_V0) == SYSCALL_UNLOCK)
+    	implementUnlock();
     else {
       pc = pc - WORDSIZE;
 
@@ -6823,6 +6894,25 @@ int* deleteContext(int* context, int* from) {
     from = getNextContext(context);
 
   freeContext(context);
+
+  //print((int*) "Deleted Context "); printInteger(getID(context)); println();
+
+  //traverseContexts(from);
+
+  return from;
+}
+
+int* deleteFromContextList(int* context, int* from) {
+  if (getNextContext(context) != (int*) 0)
+    setPrevContext(getNextContext(context), getPrevContext(context));
+
+  if (getPrevContext(context) != (int*) 0) {
+    setNextContext(getPrevContext(context), getNextContext(context));
+    setPrevContext(context, (int*) 0);
+  } else
+    from = getNextContext(context);
+
+  //freeContext(context);
 
   //print((int*) "Deleted Context "); printInteger(getID(context)); println();
 
