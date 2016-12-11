@@ -2296,7 +2296,7 @@ void createSymbolTableEntry(int whichTable, int* string, int line, int class, in
   setValue(newEntry, value);
   setAddress(newEntry, address);
 
-  print(string); printInteger(address); println();
+//  print(string); printInteger(address); println();
 
   // create entry at head of symbol table
   if (whichTable == GLOBAL_TABLE) {
@@ -6721,10 +6721,10 @@ int* allocateContext(int ID, int parentID) {
   *(getPT(context) + 1) = (int) zalloc((VIRTUALMEMORYSIZE - maxBinaryLength) / PAGESIZE / 2 * WORDSIZE);
   *(getPT(context) + 2) = (int) zalloc((VIRTUALMEMORYSIZE - maxBinaryLength) / PAGESIZE / 2 * WORDSIZE);
 
-  print((int*)"Pages total: "); printInteger(VIRTUALMEMORYSIZE / PAGESIZE); println();
-  print((int*)"Pages code: "); printInteger(maxBinaryLength / PAGESIZE); println();
-  print((int*)"Pages heap: "); printInteger((VIRTUALMEMORYSIZE - maxBinaryLength) / PAGESIZE / 2); println();
-  print((int*)"Pages stack: "); printInteger((VIRTUALMEMORYSIZE - maxBinaryLength) / PAGESIZE / 2); println();
+//  print((int*)"Pages total: "); printInteger(VIRTUALMEMORYSIZE / PAGESIZE); println();
+//  print((int*)"Pages code: "); printInteger(maxBinaryLength / PAGESIZE); println();
+//  print((int*)"Pages heap: "); printInteger((VIRTUALMEMORYSIZE - maxBinaryLength) / PAGESIZE / 2); println();
+//  print((int*)"Pages stack: "); printInteger((VIRTUALMEMORYSIZE - maxBinaryLength) / PAGESIZE / 2); println();
 
   // heap starts where it is safe to start
   setBreak(context, maxBinaryLength);
@@ -6945,7 +6945,7 @@ void mapPage(int* table, int page, int frame) {
 		print((int*) "SEG map ERROR!!");
 	}
 
-	print((int*) "Mapping page: "); printInteger(p); println();
+//	print((int*) "Mapping page: "); printInteger(p); println();
 
   *(seg + p) = frame;
 }
@@ -7016,7 +7016,7 @@ void pfree(int* frame) {
 void up_loadBinary(int* table) {
   int vaddr;
 
-  print((int*) "Start binary upload"); println();
+//  print((int*) "Start binary upload"); println();
   // binaries start at lowest virtual address
   vaddr = 0;
 
@@ -7026,7 +7026,7 @@ void up_loadBinary(int* table) {
     vaddr = vaddr + WORDSIZE;
   }
 
-  print((int*) "End binary upload: "); printInteger(vaddr/PAGESIZE); println();
+//  print((int*) "End binary upload: "); printInteger(vaddr/PAGESIZE); println();
 }
 
 int up_loadString(int* table, int* s, int SP) {
@@ -7057,7 +7057,7 @@ void up_loadArguments(int* table, int argc, int* argv) {
   int i_argc;
   int i_vargv;
 
-  print((int*) "Start argument upload"); println();
+//  print((int*) "Start argument upload"); println();
 
   // arguments are pushed onto stack which starts at highest virtual address
   SP = VIRTUALMEMORYSIZE - WORDSIZE;
@@ -7102,7 +7102,7 @@ void up_loadArguments(int* table, int argc, int* argv) {
   // store stack pointer at highest virtual address for binary to retrieve
   mapAndStoreVirtualMemory(table, VIRTUALMEMORYSIZE - WORDSIZE, SP);
 
-  print((int*) "End argument upload "); printInteger((VIRTUALMEMORYSIZE - WORDSIZE) / PAGESIZE); println();
+//  print((int*) "End argument upload "); printInteger((VIRTUALMEMORYSIZE - WORDSIZE) / PAGESIZE); println();
 }
 
 void mapUnmappedPages(int* table) {
@@ -7124,7 +7124,7 @@ void mapUnmappedPages(int* table) {
 void down_mapPageTable(int* context) {
   int page;
 
-  print((int*) "Start Down mapPage"); println();
+//  print((int*) "Start Down mapPage"); println();
 
   // assert: context page table is only mapped from beginning up and end down
 
@@ -7144,7 +7144,7 @@ void down_mapPageTable(int* context) {
     page = page - 1;
   }
 
-  print((int*) "End Down mapPage"); println();
+//  print((int*) "End Down mapPage"); println();
 }
 
 int runUntilExitWithoutExceptionHandling(int toID) {
@@ -7393,7 +7393,7 @@ int boot(int argc, int* argv) {
     repeats = repeats - 1;
   }
 
-  printInteger(contextCount); println();
+//  printInteger(contextCount); println();
 
   // mipsters and hypsters handle page faults
   exitCode = runOrHostUntilExitWithPageFaultHandling(initID);
