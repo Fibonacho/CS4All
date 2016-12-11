@@ -2282,6 +2282,8 @@ void createSymbolTableEntry(int whichTable, int* string, int line, int class, in
   setValue(newEntry, value);
   setAddress(newEntry, address);
 
+  print(string); printInteger(address); println();
+
   // create entry at head of symbol table
   if (whichTable == GLOBAL_TABLE) {
     setScope(newEntry, REG_GP);
@@ -6701,9 +6703,12 @@ int* createThread(int ID, int parentID, int* in) {
 	int* parentCtx;
 	int i;
 
-	print((int*) "Creating thread "); printInteger(ID); println();
+	print((int*) "Creating thread "); printInteger(ID); print((int*) " with parent ");
 
 	parentCtx = findContext(parentID, in);
+
+	printInteger(getID(parentCtx)); println();
+
 	parentTable = getPT(parentCtx);
 
 	context = createContext(ID, selfie_ID(), in);
@@ -6725,7 +6730,8 @@ int* createThread(int ID, int parentID, int* in) {
 		i = i + 1;
 	}
 
-	setPC(context, pc + WORDSIZE);
+	setPC(context, pc);
+	print((int*) "");
 
 	setRegs(context, copyRegs(getRegs(parentCtx)));
 
@@ -6773,9 +6779,7 @@ void switchContext(int* from, int* to) {
   setBreak(from, brk);
 
   setSP(from, *(REGISTERS+REG_SP));
-
-//  setSP(from, *(REGISTERS+REG_SP));
-//  *(REGISTERS+REG_SP) = getSP(to);
+  *(REGISTERS+REG_SP) = getSP(to);
 
   // restore machine state
   pc        = getPC(to);

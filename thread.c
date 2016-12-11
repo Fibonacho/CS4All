@@ -2,5 +2,7 @@ int main() {
 
 	threadStart();
 
-	printInteger(getPID());
+	while(1) {
+		printInteger(getPID());
+	}
 }
