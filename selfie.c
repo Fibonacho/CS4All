@@ -1055,7 +1055,7 @@ int debug_exception = 0;
 // number of instructions from context switch to timer interrupt
 // CAUTION: avoid interrupting any kernel activities, keep TIMESLICE large
 // TODO: implement proper interrupt controller to turn interrupts on and off
-int TIMESLICE = 5000;
+int TIMESLICE = 10;
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -1185,6 +1185,7 @@ int STATUS_RUNNING = 1;
 int STATUS_READY = 2;
 int STATUS_WAITING = 3;
 int STATUS_EXITING = 4;
+int STATUS_BLOCKED = 5;
 
 // context struct:
 // +---+--------+
@@ -5113,7 +5114,7 @@ void emitSchedYield() {
 
 void implementSchedYield() { // TODO: should we change method type to int?
 
-	print((int*) "Now yielding context: "); printInteger(getID(currentContext)); println();
+//	print((int*) "Now yielding context: "); printInteger(getID(currentContext)); println();
 
 	throwException(EXCEPTION_TIMER,0);
 }
@@ -5133,7 +5134,7 @@ void emitGetPID() {
 
 void implementGetPID() {
 
-	print((int*) "###########Get PID ");	printInteger(getID(currentContext)); println();
+//	print((int*) "###########Get PID ");	printInteger(getID(currentContext)); println();
 
 	*(registers+REG_V0) = getID(currentContext);
 }
@@ -5186,7 +5187,7 @@ void implementThreadStart() {
 
 void emitLock() {
   // create entry in symboltable for lock
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "lock", 0, PROCEDURE, VOID_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "lock", 0, PROCEDURE, INT_T, 0, binaryLength);
 
   // load correct syscall number
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_LOCK);
@@ -5198,21 +5199,22 @@ void emitLock() {
 }
 
 void implementLock() {
-  int pid;
 
   if(lock == 0){
+
+//  	print((int*) "got lock: "); printInteger(getID(currentContext)); println();
+
       //lock setzten
-      print((int*) "###########Lock aquire ");
-      lock = 1;
+		lock = 1;
+		*(registers+REG_V0) = 1;
   }
   else{
-      //aktuellen Prozess in waiting list einfügen und aus ready List nehmen
-      pid = getID(currentContext);
-      blockedContexts = findContext(pid, usedContexts);
-      usedContexts = deleteFromContextList(currentContext, usedContexts);
+
+//  	print((int*) "failed lock: "); printInteger(getID(currentContext)); println();
+
+		setStatus(currentContext, STATUS_BLOCKED);
+		*(registers+REG_V0) = 0;
   }
-
-
 }
 
 void emitUnlock() {
@@ -5230,10 +5232,7 @@ void emitUnlock() {
 
 void implementUnlock() {
 
-  //alle Prozesse aus der waiting List nehmen und in ready List einfügen
-
   lock = 0;
-
 }
 
 

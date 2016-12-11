@@ -1,11 +1,30 @@
 int main() {
-  // little program to demonstrate usage of locks
   int  i;
+  int test;
+	int* buf;
 
-  lock();
+
+	buf = malloc(4);
+	*(buf) = 0;
+
+  test = 0;
+
+
+	threadStart();
+
+  while(lock() == 0) {
+  	sched_yield();
+  }
 
   while(i < 10){
-      getPID();
+
+      printInteger(getPID());
+
+      test = test + 1;
+			*(buf) = *(buf) + 1;
+
+			printInteger(*(buf));
+      printInteger(test);
       i = i + 1;
   }
 
