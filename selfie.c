@@ -1217,7 +1217,7 @@ int STATUS_BLOCKED = 5;
 // | 8 | brk    | break between code, data, and heap
 // | 9 | parent | ID of context that created this context
 // | 10| status | Status of the context
-// | 11| SP			| Status of the context
+// | 11| SP     | Status of the context
 // +---+--------+
 
 int* getNextContext(int* context) { return (int*) *context; }
@@ -1231,7 +1231,7 @@ int* getPT(int* context)          { return (int*) *(context + 7); }
 int  getBreak(int* context)       { return        *(context + 8); }
 int  getParent(int* context)      { return        *(context + 9); }
 int  getStatus(int* context)      { return        *(context + 10); }
-int	 getSP(int* context)					{ return				*(context + 11); }
+int  getSP(int* context)          { return        *(context + 11); }
 
 void setNextContext(int* context, int* next) { *context       = (int) next; }
 void setPrevContext(int* context, int* prev) { *(context + 1) = (int) prev; }
@@ -1244,7 +1244,7 @@ void setPT(int* context, int* pt)            { *(context + 7) = (int) pt; }
 void setBreak(int* context, int brk)         { *(context + 8) = brk; }
 void setParent(int* context, int id)         { *(context + 9) = id; }
 void setStatus(int* context, int id)         { *(context + 10) = id; }
-void setSP(int* context, int sp)						 { *(context + 11) = sp; }
+void setSP(int* context, int sp)             { *(context + 11) = sp; }
 // -----------------------------------------------------------------
 // -------------------------- MICROKERNEL --------------------------
 // -----------------------------------------------------------------
@@ -4089,9 +4089,9 @@ void selfie_compile() {
   emitOpen();
   emitMalloc();
   emitSchedYield();
-	emitGetPID();
-	emitPrintInteger();
-	emitThreadStart();
+  emitGetPID();
+  emitPrintInteger();
+  emitThreadStart();
   emitLock();
   emitUnlock();
 
@@ -5131,9 +5131,9 @@ void emitSchedYield() {
 
 void implementSchedYield() { // TODO: should we change method type to int?
 
-//	print((int*) "Now yielding context: "); printInteger(getID(currentContext)); println();
+//  print((int*) "Now yielding context: "); printInteger(getID(currentContext)); println();
 
-	throwException(EXCEPTION_TIMER,0);
+  throwException(EXCEPTION_TIMER,0);
 }
 
 void emitGetPID() {
@@ -5151,9 +5151,9 @@ void emitGetPID() {
 
 void implementGetPID() {
 
-//	print((int*) "###########Get PID ");	printInteger(getID(currentContext)); println();
+//  print((int*) "###########Get PID ");  printInteger(getID(currentContext)); println();
 
-	*(registers+REG_V0) = getID(currentContext);
+  *(registers+REG_V0) = getID(currentContext);
 }
 
 void emitPrintInteger() {
@@ -5173,8 +5173,8 @@ void emitPrintInteger() {
 }
 
 void implementPrintInteger() {
-	printInteger(*(registers+REG_A0));
-	println();
+  printInteger(*(registers+REG_A0));
+  println();
 }
 
 void emitThreadStart() {
@@ -5192,13 +5192,13 @@ void emitThreadStart() {
 
 void implementThreadStart() {
 
-	bumpID = createID(bumpID);
+  bumpID = createID(bumpID);
 
-	print((int*) "Start thread "); printInteger(bumpID); println();
+  print((int*) "Start thread "); printInteger(bumpID); println();
 
-	usedContexts = createThread(bumpID, getID(currentContext), usedContexts);
+  usedContexts = createThread(bumpID, getID(currentContext), usedContexts);
 
-	print((int*) "Started thread "); printInteger(bumpID); println();
+  print((int*) "Started thread "); printInteger(bumpID); println();
   traverseContexts(usedContexts);
 }
 
@@ -5217,20 +5217,20 @@ void emitLock() {
 
 void implementLock() {
 
-  if(lock == 0){
+  if (lock == 0){
 
-//  	print((int*) "got lock: "); printInteger(getID(currentContext)); println();
+//    print((int*) "got lock: "); printInteger(getID(currentContext)); println();
 
       //lock setzten
-		lock = 1;
-		*(registers+REG_V0) = 1;
+    lock = 1;
+    *(registers+REG_V0) = 1;
   }
   else{
 
-//  	print((int*) "failed lock: "); printInteger(getID(currentContext)); println();
+//    print((int*) "failed lock: "); printInteger(getID(currentContext)); println();
 
-		setStatus(currentContext, STATUS_BLOCKED);
-		*(registers+REG_V0) = 0;
+    setStatus(currentContext, STATUS_BLOCKED);
+    *(registers+REG_V0) = 0;
   }
 }
 
@@ -5656,29 +5656,29 @@ void storePhysicalMemory(int* paddr, int data) {
 
 int getFrameForPage(int* table, int page) {
 
-	int* seg;
-	int p;
+  int* seg;
+  int p;
 
-	if(page <= 31) {
-//		print((int*) "Seg 0 ");
-		seg = (int*) *(table+0);
-		p = page;
-	}
-	else if(page <= 8175) {
-//		print((int*) "Seg 1 ");
-		seg = (int*) *(table+1);
-		p = page - 32;
-	}
-	else if(page <= VIRTUALMEMORYSIZE / PAGESIZE - 1) {
-//		print((int*) "Seg 2 ");
-		seg = (int*) *(table+2);
-		p = page - 32 - 8176;
-	}
-	else {
-		print((int*) "SEG frame ERROR!!");
-	}
+  if (page <= 31) {
+//    print((int*) "Seg 0 ");
+    seg = (int*) *(table+0);
+    p = page;
+  }
+  else if (page <= 8175) {
+//    print((int*) "Seg 1 ");
+    seg = (int*) *(table+1);
+    p = page - 32;
+  }
+  else if (page <= VIRTUALMEMORYSIZE / PAGESIZE - 1) {
+//    print((int*) "Seg 2 ");
+    seg = (int*) *(table+2);
+    p = page - 32 - 8176;
+  }
+  else {
+    print((int*) "SEG frame ERROR!!");
+  }
 
-//	print((int*) "Getting frame from page: "); printInteger(p); println();
+//  print((int*) "Getting frame from page: "); printInteger(p); println();
 
   return *(seg + p);
 }
@@ -5807,15 +5807,15 @@ void fct_syscall() {
     else if (*(registers+REG_V0) == SYSCALL_SCHED_YIELD)
       implementSchedYield();
     else if (*(registers+REG_V0) == SYSCALL_GET_PID)
-			implementGetPID();
+      implementGetPID();
     else if (*(registers+REG_V0) == SYSCALL_PRINT_INTEGER)
-    	implementPrintInteger();
+      implementPrintInteger();
     else if (*(registers+REG_V0) == SYSCALL_THREAD_START)
-    	implementThreadStart();
+      implementThreadStart();
     else if (*(registers+REG_V0) == SYSCALL_LOCK)
-    	implementLock();
+      implementLock();
     else if (*(registers+REG_V0) == SYSCALL_UNLOCK)
-    	implementUnlock();
+      implementUnlock();
     else if (*(registers+REG_V0) == SYSCALL_READ_LOCK)
       implementReadLock();
     else if (*(registers+REG_V0) == SYSCALL_READ_UNLOCK)
@@ -6808,78 +6808,78 @@ int* createContext(int ID, int parentID, int* in) {
 }
 
 int* copyPage(int* from, int* to) {
-	int i;
-	i = 0;
+  int i;
+  i = 0;
 
-	while(i < PAGESIZE / WORDSIZE) {
+  while (i < PAGESIZE / WORDSIZE) {
 
-		*(to+i) = *(from+i);
+    *(to+i) = *(from+i);
 
-		i = i + 1;
-	}
+    i = i + 1;
+  }
 
-	return to;
+  return to;
 }
 
 int* createThread(int ID, int parentID, int* in) {
 
-	int* context;
-	int* table;
-	int* parentTable;
-	int* parentCtx;
-	int i;
+  int* context;
+  int* table;
+  int* parentTable;
+  int* parentCtx;
+  int i;
 
-	print((int*) "Creating thread "); printInteger(ID); print((int*) " with parent ");
+  print((int*) "Creating thread "); printInteger(ID); print((int*) " with parent ");
 
-	parentCtx = findContext(parentID, in);
+  parentCtx = findContext(parentID, in);
 
-	printInteger(getID(parentCtx)); println();
+  printInteger(getID(parentCtx)); println();
 
-	parentTable = getPT(parentCtx);
+  parentTable = getPT(parentCtx);
 
-	context = createContext(ID, selfie_ID(), in);
+  context = createContext(ID, selfie_ID(), in);
 
-	table = getPT(context);
+  table = getPT(context);
 
-	*(table+0) = *(parentTable+0);
-	*(table+1) = *(parentTable+1);
+  *(table+0) = *(parentTable+0);
+  *(table+1) = *(parentTable+1);
 
-	//Copy stack
-	i = 32 + 8176;
-	while(i < VIRTUALMEMORYSIZE / PAGESIZE) {
-		if(isPageMapped(parentTable, i)) {
-			print((int*) "copy page: "); printInteger(i); println();
-			mapPage(table, i, palloc());
-			copyPage(getFrameForPage(parentTable, i), getFrameForPage(table, i));
-		}
+  //Copy stack
+  i = 32 + 8176;
+  while (i < VIRTUALMEMORYSIZE / PAGESIZE) {
+    if (isPageMapped(parentTable, i)) {
+      print((int*) "copy page: "); printInteger(i); println();
+      mapPage(table, i, palloc());
+      copyPage(getFrameForPage(parentTable, i), getFrameForPage(table, i));
+    }
 
-		i = i + 1;
-	}
+    i = i + 1;
+  }
 
-	setPC(context, pc);
-	print((int*) "");
+  setPC(context, pc);
+  print((int*) "");
 
-	setRegs(context, copyRegs(getRegs(parentCtx)));
+  setRegs(context, copyRegs(getRegs(parentCtx)));
 
-	setSP(context, getSP(parentCtx));
+  setSP(context, getSP(parentCtx));
 
-	return context;
+  return context;
 }
 
 int* copyRegs(int* regs) {
 
-	int i;
-	int* ret;
+  int i;
+  int* ret;
 
-	ret = zalloc(NUMBEROFREGISTERS * WORDSIZE);
+  ret = zalloc(NUMBEROFREGISTERS * WORDSIZE);
 
-	while(i < NUMBEROFREGISTERS) {
+  while (i < NUMBEROFREGISTERS) {
 
-		*(ret+i) = *(regs+i);
-		i = i + 1;
-	}
+    *(ret+i) = *(regs+i);
+    i = i + 1;
+  }
 
-	return ret;
+  return ret;
 }
 
 int* findContext(int ID, int* in) {
@@ -6979,29 +6979,29 @@ int* deleteFromContextList(int* context, int* from) {
 void mapPage(int* table, int page, int frame) {
   // assert: 0 <= page < VIRTUALMEMORYSIZE / PAGESIZE
 
-	int* seg;
-	int p;
+  int* seg;
+  int p;
 
-	if(page <= 31) {
-//		print((int*) "Seg 0 ");
-		seg = (int*) *(table+0);
-		p = page;
-	}
-	else if(page <= 8175) {
-//		print((int*) "Seg 1 ");
-		seg = (int*) *(table+1);
-		p = page - 32;
-	}
-	else if(page <= VIRTUALMEMORYSIZE / PAGESIZE - 1) {
-//		print((int*) "Seg 2 ");
-		seg = (int*) *(table+2);
-		p = page - 32 - 8176;
-	}
-	else {
-		print((int*) "SEG map ERROR!!");
-	}
+  if (page <= 31) {
+//    print((int*) "Seg 0 ");
+    seg = (int*) *(table+0);
+    p = page;
+  }
+  else if (page <= 8175) {
+//    print((int*) "Seg 1 ");
+    seg = (int*) *(table+1);
+    p = page - 32;
+  }
+  else if (page <= VIRTUALMEMORYSIZE / PAGESIZE - 1) {
+//    print((int*) "Seg 2 ");
+    seg = (int*) *(table+2);
+    p = page - 32 - 8176;
+  }
+  else {
+    print((int*) "SEG map ERROR!!");
+  }
 
-//	print((int*) "Mapping page: "); printInteger(p); println();
+//  print((int*) "Mapping page: "); printInteger(p); println();
 
   *(seg + p) = frame;
 }
@@ -7263,8 +7263,8 @@ int runOrHostUntilExitWithPageFaultHandling(int toID) {
     fromContext = findContext(fromID, usedContexts);
     fromParentID = getParent(fromContext);
 
-    if(getStatus(fromContext) == STATUS_EXITING) {
-    	usedContexts = deleteContext(fromContext, usedContexts);
+    if (getStatus(fromContext) == STATUS_EXITING) {
+      usedContexts = deleteContext(fromContext, usedContexts);
     }
 
     // assert: fromContext must be in usedContexts (created here)
