@@ -849,6 +849,18 @@ void implementLock();
 void emitUnlock();
 void implementUnlock();
 
+void emitReadLock();
+void implementReadLock();
+
+void emitReadUnlock();
+void implementReadUnlock();
+
+void emitWriteLock();
+void implementWriteLock();
+
+void emitWriteUnlock();
+void implementWriteUnlock();
+
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 int debug_read   = 0;
@@ -865,14 +877,19 @@ int SYSCALL_OPEN   = 4005;
 int SYSCALL_MALLOC = 4045;
 
 int SYSCALL_SCHED_YIELD = 4158; // linux opcode for sched yield
-int SYSCALL_GET_PID = 4039;
+int SYSCALL_GET_PID     = 4039;
 
 int SYSCALL_PRINT_INTEGER = 5001;
-int SYSCALL_THREAD_START = 5002;
+int SYSCALL_THREAD_START  = 5002;
 
-
-int SYSCALL_LOCK = 6001;
+int SYSCALL_LOCK   = 6001;
 int SYSCALL_UNLOCK = 6002;
+
+int SYSCALL_READ_LOCK   = 6003;
+int SYSCALL_READ_UNLOCK = 6004;
+
+int SYSCALL_WRITE_LOCK   = 6005;
+int SYSCALL_WRITE_UNLOCK = 6006;
 
 // -----------------------------------------------------------------
 // ----------------------- HYPSTER SYSCALLS ------------------------
@@ -5235,6 +5252,37 @@ void implementUnlock() {
   lock = 0;
 }
 
+void emitReadLock() {
+
+}
+
+void implementReadLock() {
+
+}
+
+void emitReadUnlock() {
+
+}
+
+void implementReadUnlock() {
+
+}
+
+void emitWriteLock() {
+
+}
+
+void implementWriteLock() {
+
+}
+
+void emitWriteUnlock() {
+
+}
+
+void implementWriteUnlock() {
+
+}
 
 // -----------------------------------------------------------------
 // ----------------------- HYPSTER SYSCALLS ------------------------
@@ -5758,16 +5806,24 @@ void fct_syscall() {
       implementMap();
     else if (*(registers+REG_V0) == SYSCALL_SCHED_YIELD)
       implementSchedYield();
-    else if(*(registers+REG_V0) == SYSCALL_GET_PID)
+    else if (*(registers+REG_V0) == SYSCALL_GET_PID)
 			implementGetPID();
-    else if(*(registers+REG_V0) == SYSCALL_PRINT_INTEGER)
+    else if (*(registers+REG_V0) == SYSCALL_PRINT_INTEGER)
     	implementPrintInteger();
-    else if(*(registers+REG_V0) == SYSCALL_THREAD_START)
+    else if (*(registers+REG_V0) == SYSCALL_THREAD_START)
     	implementThreadStart();
-    else if(*(registers+REG_V0) == SYSCALL_LOCK)
+    else if (*(registers+REG_V0) == SYSCALL_LOCK)
     	implementLock();
-    else if(*(registers+REG_V0) == SYSCALL_UNLOCK)
+    else if (*(registers+REG_V0) == SYSCALL_UNLOCK)
     	implementUnlock();
+    else if (*(registers+REG_V0) == SYSCALL_READ_LOCK)
+      implementReadLock();
+    else if (*(registers+REG_V0) == SYSCALL_READ_UNLOCK)
+      implementReadUnlock();
+    else if (*(registers+REG_V0) == SYSCALL_WRITE_LOCK)
+      implementWriteLock();
+    else if (*(registers+REG_V0) == SYSCALL_WRITE_UNLOCK)
+      implementWriteUnlock();
     else {
       pc = pc - WORDSIZE;
 
