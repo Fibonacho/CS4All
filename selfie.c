@@ -4094,6 +4094,10 @@ void selfie_compile() {
   emitThreadStart();
   emitLock();
   emitUnlock();
+  emitReadLock();
+  emitReadUnlock();
+  emitWriteLock();
+  emitWriteUnlock();
 
   emitID();
   emitCreate();
@@ -5217,16 +5221,12 @@ void emitLock() {
 
 void implementLock() {
 
-  if (lock == 0){
-
+  if (lock == 0) {
 //    print((int*) "got lock: "); printInteger(getID(currentContext)); println();
-
-      //lock setzten
+    // lock setzen
     lock = 1;
     *(registers+REG_V0) = 1;
-  }
-  else{
-
+  } else {
 //    print((int*) "failed lock: "); printInteger(getID(currentContext)); println();
 
     setStatus(currentContext, STATUS_BLOCKED);
@@ -5248,12 +5248,20 @@ void emitUnlock() {
 }
 
 void implementUnlock() {
-
   lock = 0;
 }
 
 void emitReadLock() {
+  // create entry in symboltable for readLock
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "readLock", 0, PROCEDURE, INT_T, 0, binaryLength);
 
+  // load correct syscall number
+  emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_READ_LOCK);
+  // invoke the syscall
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
+
+  // jump back to caller
+  emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
 void implementReadLock() {
@@ -5261,7 +5269,16 @@ void implementReadLock() {
 }
 
 void emitReadUnlock() {
+  // create entry in symboltable for readUnlock
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "readUnlock", 0, PROCEDURE, INT_T, 0, binaryLength);
 
+  // load correct syscall number
+  emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_READ_UNLOCK);
+  // invoke the syscall
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
+
+  // jump back to caller
+  emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
 void implementReadUnlock() {
@@ -5269,7 +5286,16 @@ void implementReadUnlock() {
 }
 
 void emitWriteLock() {
+  // create entry in symboltable for writeLock
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "writeLock", 0, PROCEDURE, INT_T, 0, binaryLength);
 
+  // load correct syscall number
+  emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_WRITE_LOCK);
+  // invoke the syscall
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
+
+  // jump back to caller
+  emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
 void implementWriteLock() {
@@ -5277,7 +5303,16 @@ void implementWriteLock() {
 }
 
 void emitWriteUnlock() {
+  // create entry in symboltable for writeUnlock
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "writeUnlock", 0, PROCEDURE, INT_T, 0, binaryLength);
 
+  // load correct syscall number
+  emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_WRITE_UNLOCK);
+  // invoke the syscall
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
+
+  // jump back to caller
+  emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
 void implementWriteUnlock() {
