@@ -1245,6 +1245,59 @@ void setBreak(int* context, int brk)         { *(context + 8) = brk; }
 void setParent(int* context, int id)         { *(context + 9) = id; }
 void setStatus(int* context, int id)         { *(context + 10) = id; }
 void setSP(int* context, int sp)             { *(context + 11) = sp; }
+
+// -----------------------------------------------------------------
+// ----------------------------- LOCKS -----------------------------
+// -----------------------------------------------------------------
+
+int* locks = (int*) 0; // linked list for data locks (read or write)
+
+int* createLock(int pid, int* address, int type);
+int* findLock(int pid, int* address);
+void deleteLock(int pid, int* address);
+
+// locks list:
+// +---+--------+
+// | 0 | addr   | pointer to physical memory address
+// | 1 | pid    | pid of locking process (i.e. thread)
+// | 2 | type   | boolean (1 if write-lock, 0 if read-lock)
+// | 3 | nxt    | pointer to next element
+// +---+--------+
+
+// getters for lock objects
+int* getLockObjectAddress(int* lockObject) { return (int*) *(lockObject + 0); }
+int  getLockObjectPID(int* lockObject)     { return        *(lockObject + 1); }
+int  getLockObjectType(int* lockObject)    { return        *(lockObject + 2); }
+int* getNextLockObject(int* lockObject)    { return (int*) *(lockObject + 3); }
+
+// setters for lock objects
+void setLockObjectAddress(int* lockObject, int* address) { *(lockObject + 0) = address; }
+void setLockObjectPID(int* lockObject, int pid)          { *(lockObject + 1) = pid;     }
+void setLockObjectType(int* lockObject, int type)        { *(lockObject + 2) = type;    }
+void setNextLockObject(int* lockObject, int* next)       { *(lockObject + 3) = next;    }
+
+int* createLock(int pid, int* address, int type) {
+  // create a new list object in locks with:
+  // physical address of data object
+  // pid of thread that wants to lock a data object
+  // type of lock (write or read)
+  // pointer to next lock object
+  // return 1 on success, 0 otherwise
+  return (int*) 0;
+}
+
+int* findLock(int pid, int* address) {
+  // find lock of process/thread with PID pid on object
+  // with physical address *address
+  return (int*) 0;
+}
+
+void deleteLock(int pid, int* address) {
+  // delete lock on object with physical address *address
+  // of process/thread with PID pid
+  return (int*) 0;
+}
+
 // -----------------------------------------------------------------
 // -------------------------- MICROKERNEL --------------------------
 // -----------------------------------------------------------------
@@ -1263,6 +1316,7 @@ int* currentContext = (int*) 0; // context currently running
 
 int* usedContexts = (int*) 0;   // doubly-linked list of used contexts
 int* freeContexts = (int*) 0;   // singly-linked list of free contexts
+
 int* blockedContexts = (int*) 0; // linked list for blocked contexts
 
 // ------------------------- INITIALIZATION ------------------------
@@ -5265,7 +5319,8 @@ void emitReadLock() {
 }
 
 void implementReadLock() {
-
+  // check if there is already a write lock on the object that should get a read lock
+  // if there is no write lock (but maybe one or more read locks): object can be read locked
 }
 
 void emitReadUnlock() {
@@ -5282,7 +5337,8 @@ void emitReadUnlock() {
 }
 
 void implementReadUnlock() {
-
+  // remove list entry for read-unlock on this object
+  // no further checks necessary
 }
 
 void emitWriteLock() {
@@ -5299,7 +5355,9 @@ void emitWriteLock() {
 }
 
 void implementWriteLock() {
-
+  // check if the object that should be write locked has already some other lock
+  // neither another write lock, nor one or more other read locks are allowed
+  // create write lock iff there is no other lock on this object
 }
 
 void emitWriteUnlock() {
@@ -5316,7 +5374,7 @@ void emitWriteUnlock() {
 }
 
 void implementWriteUnlock() {
-
+  // remove write lock of this object
 }
 
 // -----------------------------------------------------------------
