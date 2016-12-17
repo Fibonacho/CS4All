@@ -1072,7 +1072,7 @@ int debug_exception = 0;
 // number of instructions from context switch to timer interrupt
 // CAUTION: avoid interrupting any kernel activities, keep TIMESLICE large
 // TODO: implement proper interrupt controller to turn interrupts on and off
-int TIMESLICE = 10;
+int TIMESLICE = 10000;
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -1274,9 +1274,15 @@ int* getNextLockObject(int* lockObject)    { return (int*) *(lockObject + 3); }
 
 // setters for lock objects
 void setLockObjectAddress(int* lockObject, int* paddr) { *(lockObject + 0) = paddr; }
-void setLockObjectPID(int* lockObject, int pid)        { *(lockObject + 1) = pid;     }
-void setLockObjectType(int* lockObject, int type)      { *(lockObject + 2) = type;    }
-void setNextLockObject(int* lockObject, int* next)     { *(lockObject + 3) = next;    }
+void setLockObjectPID(int* lockObject, int pid)        { *(lockObject + 1) = pid;   }
+void setLockObjectType(int* lockObject, int type)      { *(lockObject + 2) = type;  }
+void setNextLockObject(int* lockObject, int* next)     { *(lockObject + 3) = next;   }
+void appendToLocksList(int* newLockObject) {
+  int* tmp;
+  tmp          = locks;
+  locks        = newLockObject;
+  *(locks + 3) = tmp;
+}
 
 int* createLock(int pid, int* paddr, int type) {
   // create a new list object in locks with:
@@ -1284,22 +1290,22 @@ int* createLock(int pid, int* paddr, int type) {
   // pid of thread that wants to lock a data object
   // type of lock (write - 1 or read - 0)
   // pointer to next lock object
-  int* lockObject;
-  lockObject = zalloc(4 * SIZEOFINTSTAR);
+  int* newLockObject;
+  int* tmp;
+  newLockObject = zalloc(4 * SIZEOFINTSTAR);
+
+  print((int*) "####################################################"); println();
+  setLockObjectPID(newLockObject, pid);
+  setLockObjectAddress(newLockObject, paddr);
+  setLockObjectType(newLockObject, type);
 
   if (locks == (int*) 0) {
-    locks = lockObject;
-    setLockObjectPID(lockObject, pid);
-    setLockObjectAddress(lockObject, paddr);
-    setLockObjectType(lockObject, type);
+    locks = newLockObject;
   } else {
-    setNextLockObject(lockObject, locks);
-    setLockObjectPID(lockObject, pid);
-    setLockObjectAddress(lockObject, paddr);
-    setLockObjectType(lockObject, type);
+    appendToLocksList(newLockObject);
   }
 
-  return lockObject;
+  return newLockObject;
 }
 
 // return 1 if lock already exists, 0 otherwise
@@ -1324,29 +1330,31 @@ int* findLock(int pid, int* paddr) {
 void deleteLock(int pid, int* paddr) {
   // delete lock on object with physical address *address
   // of process/thread with PID pid
-  int* toDeleteLock;
   int* prevLock;
+  int* currLock;
 
-  if (locks != (int*) 0) {
-    prevLock = locks;
-    if (getLockObjectPID(prevLock) == pid) {
-      if (getLockObjectAddress(prevLock) == paddr) {
-        locks = (int*) 0;
-        return;
-      }
+  if (locks == (int*) 0) return;
+  if (getLockObjectPID(locks) == pid) {
+    if (getLockObjectAddress(locks) == paddr) {
+      locks = (int*) 0;
+      return;
     }
   }
 
-  while (getNextLockObject(prevLock) != (int*) 0) {
-    if (getLockObjectPID(getNextLockObject((prevLock)) == pid)) {
-      if (getLockObjectAddress((getNextLockObject(prevLock))) == paddr) {
-        toDeleteLock = getNextLockObject(prevLock);
-        setNextLockObject(prevLock, getNextLockObject(toDeleteLock));
-        toDeleteLock = (int*) 0;
+  prevLock = locks;
+  currLock = getNextLockObject(prevLock);
+
+  while (currLock != (int*) 0) {
+    if (getLockObjectPID(currLock) == pid) {
+      if (getLockObjectAddress(currLock) == paddr) {
+        // found element to delete
+        setNextLockObject(prevLock, getNextLockObject(currLock));
+        currLock = (int*) 0;
+        return;
       }
-    } else {
-      prevLock = getNextLockObject(prevLock);
     }
+    prevLock = currLock;
+    currLock = getNextLockObject(currLock);
   }
 }
 
@@ -1355,9 +1363,9 @@ void traverseLocks(int* entry) {
   if (entry == (int*) 0) {
     return;
   } else {
-    print((int*) "address: "); print(getLockObjectAddress(entry));     print((int*) "|");
-    print((int*) "pid:     "); printInteger(getLockObjectPID(entry));  print((int*) "|");
-    print((int*) "type:    "); printInteger(getLockObjectType(entry)); print((int*) "|");
+    print((int*) "address: "); printHexadecimal(getLockObjectAddress(entry), 8);     print((int*) " | ");
+    print((int*) "pid:     "); printInteger(getLockObjectPID(entry));  print((int*) " | ");
+    print((int*) "type:    "); printInteger(getLockObjectType(entry)); print((int*) " | ");
     println();
     traverseLocks(getNextLockObject(entry));
   }
@@ -5322,7 +5330,7 @@ void implementThreadStart() {
   usedContexts = createThread(bumpID, getID(currentContext), usedContexts);
 
   print((int*) "Started thread "); printInteger(bumpID); println();
-  traverseContexts(usedContexts);
+  //traverseContexts(usedContexts);
 }
 
 void emitLock() {
@@ -5400,17 +5408,17 @@ void implementReadLock() {
   vaddr = *(registers+REG_A0);
 
   if (isValidVirtualAddress(vaddr)) {
-    buffer = tlb(pt, vaddr);
     frame = getFrameForPage(pt, getPageOfVirtualAddress(vaddr));
     // map virtual address to physical address
     paddr = (vaddr % PAGESIZE) + frame;
+    buffer = tlb(pt, vaddr);
   } else {
     print((int*) "invalid ");
   }
 
   print((int*) "vaddr:  "); printHexadecimal(vaddr, 8); println();
   print((int*) "buffer: "); print(buffer); println();
-  print((int*) "paddr:  "); printInteger(paddr); println();
+  print((int*) "paddr:  "); printHexadecimal(paddr, 8); println();
 
   exists = findLock(getID(currentContext), paddr);
 
@@ -5467,6 +5475,8 @@ void implementReadUnlock() {
   if (exists) {
     deleteLock(getID(currentContext), buffer);
   }
+
+  traverseLocks(locks);
 }
 
 void emitWriteLock() {
