@@ -1252,9 +1252,11 @@ void setSP(int* context, int sp)             { *(context + 11) = sp; }
 
 int* locks = (int*) 0; // linked list for data locks (read or write)
 
-int* createLock(int pid, int* address, int type);
-int* findLock(int pid, int* address);
-void deleteLock(int pid, int* address);
+int* createLock(int pid, int* paddr, int type);
+int* findLock(int pid, int* paddr);
+void deleteLock(int pid, int* paddr);
+
+void traverseLocks(int* entry);
 
 // locks list:
 // +---+--------+
@@ -1271,31 +1273,94 @@ int  getLockObjectType(int* lockObject)    { return        *(lockObject + 2); }
 int* getNextLockObject(int* lockObject)    { return (int*) *(lockObject + 3); }
 
 // setters for lock objects
-void setLockObjectAddress(int* lockObject, int* address) { *(lockObject + 0) = address; }
-void setLockObjectPID(int* lockObject, int pid)          { *(lockObject + 1) = pid;     }
-void setLockObjectType(int* lockObject, int type)        { *(lockObject + 2) = type;    }
-void setNextLockObject(int* lockObject, int* next)       { *(lockObject + 3) = next;    }
+void setLockObjectAddress(int* lockObject, int* paddr) { *(lockObject + 0) = paddr; }
+void setLockObjectPID(int* lockObject, int pid)        { *(lockObject + 1) = pid;     }
+void setLockObjectType(int* lockObject, int type)      { *(lockObject + 2) = type;    }
+void setNextLockObject(int* lockObject, int* next)     { *(lockObject + 3) = next;    }
 
-int* createLock(int pid, int* address, int type) {
+int* createLock(int pid, int* paddr, int type) {
   // create a new list object in locks with:
   // physical address of data object
   // pid of thread that wants to lock a data object
-  // type of lock (write or read)
+  // type of lock (write - 1 or read - 0)
   // pointer to next lock object
-  // return 1 on success, 0 otherwise
-  return (int*) 0;
+  int* lockObject;
+  lockObject = zalloc(4 * SIZEOFINTSTAR);
+
+  if (locks == (int*) 0) {
+    locks = lockObject;
+    setLockObjectPID(lockObject, pid);
+    setLockObjectAddress(lockObject, paddr);
+    setLockObjectType(lockObject, type);
+  } else {
+    setNextLockObject(lockObject, locks);
+    setLockObjectPID(lockObject, pid);
+    setLockObjectAddress(lockObject, paddr);
+    setLockObjectType(lockObject, type);
+  }
+
+  return lockObject;
 }
 
-int* findLock(int pid, int* address) {
+// return 1 if lock already exists, 0 otherwise
+int* findLock(int pid, int* paddr) {
   // find lock of process/thread with PID pid on object
   // with physical address *address
+  int* currLock;
+  currLock = locks;
+
+  while (currLock != (int*) 0) {
+    if (getLockObjectPID(currLock) == pid) {
+      if (getLockObjectAddress(currLock) == paddr) {
+        return (int*) 1;
+      }
+    }
+    currLock = getNextLockObject(currLock);
+  }
+
   return (int*) 0;
 }
 
-void deleteLock(int pid, int* address) {
+void deleteLock(int pid, int* paddr) {
   // delete lock on object with physical address *address
   // of process/thread with PID pid
-  return (int*) 0;
+  int* toDeleteLock;
+  int* prevLock;
+
+  if (locks != (int*) 0) {
+    prevLock = locks;
+    if (getLockObjectPID(prevLock) == pid) {
+      if (getLockObjectAddress(prevLock) == paddr) {
+        locks = (int*) 0;
+        return;
+      }
+    }
+  }
+
+  while (getNextLockObject(prevLock) != (int*) 0) {
+    if (getLockObjectPID(getNextLockObject((prevLock)) == pid)) {
+      if (getLockObjectAddress((getNextLockObject(prevLock))) == paddr) {
+        toDeleteLock = getNextLockObject(prevLock);
+        setNextLockObject(prevLock, getNextLockObject(toDeleteLock));
+        toDeleteLock = (int*) 0;
+      }
+    } else {
+      prevLock = getNextLockObject(prevLock);
+    }
+  }
+}
+
+void traverseLocks(int* entry) {
+  // print content of locks-table
+  if (entry == (int*) 0) {
+    return;
+  } else {
+    print((int*) "address: "); print(getLockObjectAddress(entry));     print((int*) "|");
+    print((int*) "pid:     "); printInteger(getLockObjectPID(entry));  print((int*) "|");
+    print((int*) "type:    "); printInteger(getLockObjectType(entry)); print((int*) "|");
+    println();
+    traverseLocks(getNextLockObject(entry));
+  }
 }
 
 // -----------------------------------------------------------------
@@ -2365,7 +2430,7 @@ void createSymbolTableEntry(int whichTable, int* string, int line, int class, in
   setClass(newEntry, class);
   setType(newEntry, type);
   setValue(newEntry, value);
-  setAddress(newEntry, address);
+  setAddress(newEntry, paddr);
 
 //  print(string); printInteger(address); println();
 
@@ -5252,7 +5317,7 @@ void implementThreadStart() {
 
   bumpID = createID(bumpID);
 
-  print((int*) "Start thread "); printInteger(bumpID); println();
+  print((int*) "Start thread   "); printInteger(bumpID); println();
 
   usedContexts = createThread(bumpID, getID(currentContext), usedContexts);
 
@@ -5309,6 +5374,9 @@ void emitReadLock() {
   // create entry in symboltable for readLock
   createSymbolTableEntry(LIBRARY_TABLE, (int*) "readLock", 0, PROCEDURE, INT_T, 0, binaryLength);
 
+  emitIFormat(OP_LW, REG_SP, REG_A0, 0); // int* address
+  emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
+
   // load correct syscall number
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_READ_LOCK);
   // invoke the syscall
@@ -5321,11 +5389,50 @@ void emitReadLock() {
 void implementReadLock() {
   // check if there is already a write lock on the object that should get a read lock
   // if there is no write lock (but maybe one or more read locks): object can be read locked
+  int  vaddr;
+  int  paddr;
+  int  frame;
+  int  exists; // for check if lock already exists
+  int* buffer;
+  int* lock;
+
+  // get virtual address from register
+  vaddr = *(registers+REG_A0);
+
+  if (isValidVirtualAddress(vaddr)) {
+    buffer = tlb(pt, vaddr);
+    frame = getFrameForPage(pt, getPageOfVirtualAddress(vaddr));
+    // map virtual address to physical address
+    paddr = (vaddr % PAGESIZE) + frame;
+  } else {
+    print((int*) "invalid ");
+  }
+
+  print((int*) "vaddr:  "); printHexadecimal(vaddr, 8); println();
+  print((int*) "buffer: "); print(buffer); println();
+  print((int*) "paddr:  "); printInteger(paddr); println();
+
+  exists = findLock(getID(currentContext), paddr);
+
+  if (exists == 0) {
+    lock = createLock(getID(currentContext), paddr, 0); // 0 is read-lock
+  }
+
+  if (lock != (int*) 0) {
+    *(registers+REG_V0) = 1; // creating lock was successful
+  } else {
+    *(registers+REG_V0) = 0;
+  }
+
+  traverseLocks(lock);
 }
 
 void emitReadUnlock() {
   // create entry in symboltable for readUnlock
   createSymbolTableEntry(LIBRARY_TABLE, (int*) "readUnlock", 0, PROCEDURE, INT_T, 0, binaryLength);
+
+  emitIFormat(OP_LW, REG_SP, REG_A0, 0); // int* address
+  emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
 
   // load correct syscall number
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_READ_UNLOCK);
@@ -5339,11 +5446,35 @@ void emitReadUnlock() {
 void implementReadUnlock() {
   // remove list entry for read-unlock on this object
   // no further checks necessary
+  int  vaddr;
+  int  exists; // for check if lock already exists
+  int* buffer;
+  int* lock;
+
+  vaddr = *(registers+REG_A0); // get value from register
+
+  if (isValidVirtualAddress(vaddr)) {
+    buffer = tlb(pt, vaddr);
+  } else {
+    print((int*) "invalid ");
+  }
+
+  print((int*) "vaddr:  "); printHexadecimal(vaddr, 8); println();
+  print((int*) "buffer: "); print(buffer); println();
+
+  exists = findLock(getID(currentContext), buffer);
+
+  if (exists) {
+    deleteLock(getID(currentContext), buffer);
+  }
 }
 
 void emitWriteLock() {
   // create entry in symboltable for writeLock
   createSymbolTableEntry(LIBRARY_TABLE, (int*) "writeLock", 0, PROCEDURE, INT_T, 0, binaryLength);
+
+  emitIFormat(OP_LW, REG_SP, REG_A0, 0); // int* address
+  emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
 
   // load correct syscall number
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_WRITE_LOCK);
@@ -5363,6 +5494,9 @@ void implementWriteLock() {
 void emitWriteUnlock() {
   // create entry in symboltable for writeUnlock
   createSymbolTableEntry(LIBRARY_TABLE, (int*) "writeUnlock", 0, PROCEDURE, INT_T, 0, binaryLength);
+
+  emitIFormat(OP_LW, REG_SP, REG_A0, 0); // int* address
+  emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
 
   // load correct syscall number
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_WRITE_UNLOCK);
