@@ -2430,7 +2430,7 @@ void createSymbolTableEntry(int whichTable, int* string, int line, int class, in
   setClass(newEntry, class);
   setType(newEntry, type);
   setValue(newEntry, value);
-  setAddress(newEntry, paddr);
+  setAddress(newEntry, address);
 
 //  print(string); printInteger(address); println();
 
