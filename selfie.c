@@ -1308,7 +1308,7 @@ int* createLock(int pid, int* paddr, int type) {
   return newLockObject;
 }
 
-// return 1 if lock already exists, 0 otherwise
+// return lock-type, or -1 if no lock exists
 int* findLock(int pid, int* paddr) {
   // find lock of process/thread with PID pid on object
   // with physical address *address
@@ -1318,13 +1318,13 @@ int* findLock(int pid, int* paddr) {
   while (currLock != (int*) 0) {
     if (getLockObjectPID(currLock) == pid) {
       if (getLockObjectAddress(currLock) == paddr) {
-        return (int*) 1;
+        return getLockObjectType(currLock);
       }
     }
     currLock = getNextLockObject(currLock);
   }
 
-  return (int*) 0;
+  return (int*) -1;
 }
 
 void deleteLock(int pid, int* paddr) {
@@ -5400,7 +5400,7 @@ void implementReadLock() {
   int  vaddr;
   int  paddr;
   int  frame;
-  int  exists; // for check if lock already exists
+  int  lockType; // for check if lock already exists
   int* buffer;
   int* lock;
 
@@ -5420,9 +5420,12 @@ void implementReadLock() {
   print((int*) "buffer: "); print(buffer); println();
   print((int*) "paddr:  "); printHexadecimal(paddr, 8); println();
 
-  exists = findLock(getID(currentContext), paddr);
+  lockType = findLock(getID(currentContext), paddr);
+  print((int*) "lock type: "); printInteger(lockType); println();
 
-  if (exists == 0) {
+  if (lockType == 0) { // already read-lock on address
+    lock = createLock(getID(currentContext), paddr, 0); // 0 is read-lock
+  } else if (lockType == -1) { // no lock on address exists
     lock = createLock(getID(currentContext), paddr, 0); // 0 is read-lock
   }
 
@@ -5499,6 +5502,7 @@ void implementWriteLock() {
   // check if the object that should be write locked has already some other lock
   // neither another write lock, nor one or more other read locks are allowed
   // create write lock iff there is no other lock on this object
+
 }
 
 void emitWriteUnlock() {
