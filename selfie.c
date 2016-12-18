@@ -5458,13 +5458,19 @@ void implementReadUnlock() {
   // remove list entry for read-unlock on this object
   // no further checks necessary
   int  vaddr;
-  int  exists; // for check if lock already exists
+  int  paddr;
+  int  frame;
+  int  lockType; // for check if lock already exists
   int* buffer;
   int* lock;
 
-  vaddr = *(registers+REG_A0); // get value from register
+  // get virtual address from register
+  vaddr = *(registers+REG_A0);
 
   if (isValidVirtualAddress(vaddr)) {
+    frame = getFrameForPage(pt, getPageOfVirtualAddress(vaddr));
+    // map virtual address to physical address
+    paddr = (vaddr % PAGESIZE) + frame;
     buffer = tlb(pt, vaddr);
   } else {
     print((int*) "invalid ");
@@ -5472,11 +5478,14 @@ void implementReadUnlock() {
 
   print((int*) "vaddr:  "); printHexadecimal(vaddr, 8); println();
   print((int*) "buffer: "); print(buffer); println();
+  print((int*) "paddr:  "); printHexadecimal(paddr, 8); println();
 
-  exists = findLock(getID(currentContext), buffer);
+  lockType = findLock(getID(currentContext), paddr);
 
-  if (exists) {
-    deleteLock(getID(currentContext), buffer);
+  if (lockType == 0) {
+    deleteLock(getID(currentContext), paddr);
+  } else if (lockType == 1) {
+    deleteLock(getID(currentContext), paddr);
   }
 
   traverseLocks(locks);
@@ -5502,7 +5511,6 @@ void implementWriteLock() {
   // check if the object that should be write locked has already some other lock
   // neither another write lock, nor one or more other read locks are allowed
   // create write lock iff there is no other lock on this object
-
 }
 
 void emitWriteUnlock() {
