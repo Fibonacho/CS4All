@@ -1253,7 +1253,7 @@ void setSP(int* context, int sp)             { *(context + 11) = sp; }
 int* locks = (int*) 0; // linked list for data locks (read or write)
 
 int* createLock(int pid, int* paddr, int type);
-int* findLock(int pid, int* paddr);
+int  findLock(int pid, int* paddr);
 void deleteLock(int pid, int* paddr);
 
 void traverseLocks(int* entry);
@@ -1273,15 +1273,15 @@ int  getLockObjectType(int* lockObject)    { return        *(lockObject + 2); }
 int* getNextLockObject(int* lockObject)    { return (int*) *(lockObject + 3); }
 
 // setters for lock objects
-void setLockObjectAddress(int* lockObject, int* paddr) { *(lockObject + 0) = paddr; }
+void setLockObjectAddress(int* lockObject, int* paddr) { *(lockObject + 0) = (int) paddr; }
 void setLockObjectPID(int* lockObject, int pid)        { *(lockObject + 1) = pid;   }
 void setLockObjectType(int* lockObject, int type)      { *(lockObject + 2) = type;  }
-void setNextLockObject(int* lockObject, int* next)     { *(lockObject + 3) = next;   }
+void setNextLockObject(int* lockObject, int* next)     { *(lockObject + 3) = (int) next;   }
 void appendToLocksList(int* newLockObject) {
   int* tmp;
   tmp          = locks;
   locks        = newLockObject;
-  *(locks + 3) = tmp;
+  *(locks + 3) = (int) tmp;
 }
 
 int* createLock(int pid, int* paddr, int type) {
@@ -1309,7 +1309,7 @@ int* createLock(int pid, int* paddr, int type) {
 }
 
 // return lock-type, or -1 if no lock exists
-int* findLock(int pid, int* paddr) {
+int findLock(int pid, int* paddr) {
   // find lock of process/thread with PID pid on object
   // with physical address *address
   int* currLock;
@@ -1324,7 +1324,7 @@ int* findLock(int pid, int* paddr) {
     currLock = getNextLockObject(currLock);
   }
 
-  return (int*) -1;
+  return (-1);
 }
 
 void deleteLock(int pid, int* paddr) {
@@ -5400,12 +5400,13 @@ void implementReadLock() {
   int  vaddr;
   int  paddr;
   int  frame;
-  int  lockType; // for check if lock already exists
+  int  lockType;
   int* buffer;
   int* lock;
 
   // get virtual address from register
   vaddr = *(registers+REG_A0);
+  print((int*) "\nimplementReadLock:  "); printHexadecimal(vaddr, 8); println();
 
   if (isValidVirtualAddress(vaddr)) {
     frame = getFrameForPage(pt, getPageOfVirtualAddress(vaddr));
@@ -5460,7 +5461,7 @@ void implementReadUnlock() {
   int  vaddr;
   int  paddr;
   int  frame;
-  int  lockType; // for check if lock already exists
+  int  lockType;
   int* buffer;
   int* lock;
 
@@ -5484,8 +5485,7 @@ void implementReadUnlock() {
 
   if (lockType == 0) {
     deleteLock(getID(currentContext), paddr);
-  } else if (lockType == 1) {
-    deleteLock(getID(currentContext), paddr);
+    print((int*) "readUnlock>>>>>>>>>>>>>>>>>>>>>> "); println();
   }
 
   traverseLocks(locks);
@@ -5511,6 +5511,47 @@ void implementWriteLock() {
   // check if the object that should be write locked has already some other lock
   // neither another write lock, nor one or more other read locks are allowed
   // create write lock iff there is no other lock on this object
+  int  vaddr;
+  int  paddr;
+  int  frame;
+  int  lockType;
+  int* buffer;
+  int* lock;
+
+  // get virtual address from register
+  vaddr = *(registers+REG_A0);
+  print((int*) "\nimplementWriteLock:  "); printHexadecimal(vaddr, 8); println();
+
+  if (isValidVirtualAddress(vaddr)) {
+    frame = getFrameForPage(pt, getPageOfVirtualAddress(vaddr));
+    // map virtual address to physical address
+    paddr = (vaddr % PAGESIZE) + frame;
+    buffer = tlb(pt, vaddr);
+  } else {
+    print((int*) "invalid ");
+  }
+
+  print((int*) "vaddr:  "); printHexadecimal(vaddr, 8); println();
+  print((int*) "buffer: "); print(buffer); println();
+  print((int*) "paddr:  "); printHexadecimal(paddr, 8); println();
+
+  lockType = findLock(getID(currentContext), paddr);
+  print((int*) "lock type: "); printInteger(lockType); println();
+
+  if (lockType == (-1)) { // no lock on address exists
+    print((int*) "setWriteLock "); println();
+    lock = createLock(getID(currentContext), paddr, 1); // 1 is write-lock
+  } else {
+    lock = (int*) 0;
+  }
+
+  if (lock != (int*) 0) {
+    *(registers+REG_V0) = 1; // creating lock was successful
+  } else {
+    *(registers+REG_V0) = 0;
+  }
+
+  traverseLocks(lock);
 }
 
 void emitWriteUnlock() {
@@ -5531,6 +5572,37 @@ void emitWriteUnlock() {
 
 void implementWriteUnlock() {
   // remove write lock of this object
+  int  vaddr;
+  int  paddr;
+  int  frame;
+  int  lockType;
+  int* buffer;
+  int* lock;
+
+  // get virtual address from register
+  vaddr = *(registers+REG_A0);
+
+  if (isValidVirtualAddress(vaddr)) {
+    frame = getFrameForPage(pt, getPageOfVirtualAddress(vaddr));
+    // map virtual address to physical address
+    paddr = (vaddr % PAGESIZE) + frame;
+    buffer = tlb(pt, vaddr);
+  } else {
+    print((int*) "invalid ");
+  }
+
+  print((int*) "vaddr:  "); printHexadecimal(vaddr, 8); println();
+  print((int*) "buffer: "); print(buffer); println();
+  print((int*) "paddr:  "); printHexadecimal(paddr, 8); println();
+
+  lockType = findLock(getID(currentContext), paddr);
+
+  if (lockType == 1) { // 1 is write-lock
+    deleteLock(getID(currentContext), paddr);
+    print((int*) "writeUnlock<<<<<<<<<<<<<<<<<<<<< "); println();
+  }
+
+  traverseLocks(locks);
 }
 
 // -----------------------------------------------------------------
