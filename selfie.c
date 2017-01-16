@@ -4006,7 +4006,7 @@ void selfie_compile() {
 
   // library:
   // exit must be first to exit main
-  // if exit call in main is missing
+  // if exit call in mai^^n is missing
   emitExit();
   emitRead();
   emitWrite();
@@ -4019,6 +4019,7 @@ void selfie_compile() {
   emitStatus();
   emitDelete();
   emitMap();
+  emitFree();
 
   while (link) {
     if (numberOfRemainingArguments() == 0)
@@ -4879,6 +4880,7 @@ void implementWrite() {
 }
 
 void emitFree() {
+
   createSymbolTableEntry(LIBRARY_TABLE, (int*) "free", 0, PROCEDURE, VOID_T, 0, binaryLength);
 
   emitIFormat(OP_LW, REG_SP, REG_A0, 0); // pointer
@@ -4890,13 +4892,83 @@ void emitFree() {
   emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
+void coalesce(int* left, int* right) {
+
+	int left_size;
+	int* left_next;
+	int* left_prev;
+	int left_free;
+
+	int right_size;
+	int* right_next;
+	int* right_prev;
+	int right_free;
+
+	int* right_next_prev;
+
+	print((int*) "coalesce: "); printInteger(left); print((int*) " " ); printInteger(right); println();
+
+	left_size = loadVirtualMemory(getPT(usedContexts), left);
+	left_next = loadVirtualMemory(getPT(usedContexts), left+1);
+	left_free = loadVirtualMemory(getPT(usedContexts), left+2);
+	left_prev = loadVirtualMemory(getPT(usedContexts), left+3);
+
+	right_size = loadVirtualMemory(getPT(usedContexts), right);
+	right_next = loadVirtualMemory(getPT(usedContexts), right+1);
+	right_free = loadVirtualMemory(getPT(usedContexts), right+2);
+	right_prev = loadVirtualMemory(getPT(usedContexts), right+3);
+
+	right_next_prev = loadVirtualMemory(getPT(usedContexts), right_next + 3);
+
+	if(right_next_prev != (int*) 0) {
+		mapAndStoreVirtualMemory(getPT(usedContexts), right_next+3, left);
+	}
+
+	storeVirtualMemory(getPT(usedContexts), left, left_size + right_size + 4 * WORDSIZE);
+	storeVirtualMemory(getPT(usedContexts), left+1, right_next);
+	storeVirtualMemory(getPT(usedContexts), left+2, 1);
+}
+
+void start_coalesce(int* p) {
+
+	int curr_size;
+	int* curr_next;
+	int* curr_prev;
+	int curr_free;
+
+	curr_size = loadVirtualMemory(getPT(usedContexts), p);
+	curr_next = loadVirtualMemory(getPT(usedContexts), p+1);
+	curr_free = loadVirtualMemory(getPT(usedContexts), p+2);
+	curr_prev = loadVirtualMemory(getPT(usedContexts), p+3);
+
+	if(curr_next != (int*) 0) {
+
+		print((int*) "right:"); printInteger(loadVirtualMemory(getPT(usedContexts), curr_next+2)); println();
+		if(loadVirtualMemory(getPT(usedContexts), curr_next+2) == 1) {
+			coalesce(p, curr_next);
+		}
+	}
+
+	if(curr_prev != (int*) 0) {
+		print((int*) "left:"); printInteger(loadVirtualMemory(getPT(usedContexts), curr_prev+2)); println();
+
+		if(loadVirtualMemory(getPT(usedContexts), curr_prev+2) == 1) {
+			coalesce(curr_prev, p);
+		}
+	}
+}
+
 void implementFree() {
 
 	int* toFree;
 
 	toFree = *(registers+REG_A0);
 
+	print((int*) "Freeing: "); printInteger(toFree-4); println();
 
+	mapAndStoreVirtualMemory(getPT(usedContexts), toFree-4+2, 1);
+
+	start_coalesce(toFree-4);
 }
 
 void emitOpen() {
@@ -5039,6 +5111,7 @@ int* findFreeSpace(int size) {
 	int* curr;
 	int curr_size;
 	int* curr_next;
+	int* curr_prev;
 	int curr_free;
 	int actualSize;
 	int i;
@@ -5049,9 +5122,9 @@ int* findFreeSpace(int size) {
 	i = 2;
 
 	// We need 2 additional words for the preamble
-	actualSize = size + 3 * WORDSIZE;
+	actualSize = size + 4 * WORDSIZE;
 
-	curr = freeMemory;
+	curr = brk;
 
 	while(cont == 1) {
 
@@ -5060,6 +5133,12 @@ int* findFreeSpace(int size) {
 		curr_size = loadVirtualMemory(getPT(usedContexts), curr);
 		curr_next = loadVirtualMemory(getPT(usedContexts), curr+1);
 		curr_free = loadVirtualMemory(getPT(usedContexts), curr+2);
+		curr_prev = loadVirtualMemory(getPT(usedContexts), curr+3);
+
+		print((int*) "Curr: "); printInteger(curr); println();
+		print((int*) "Size: "); printInteger(curr_size); println();
+		print((int*) "Free: "); printInteger(curr_free); println();
+
 
 		if(curr_free != 1) {
 			cont = 1;
@@ -5070,24 +5149,25 @@ int* findFreeSpace(int size) {
 		}
 
 		if(cont == 1) {
+			if(curr_next == 0) {
+				throwException(EXCEPTION_NO_FREESPACE, 0);
+			}
 			curr = curr_next;
 		}
 	}
 
-	print((int*) "DEBUG"); println();
-	print((int*) "at: "); printInteger(curr); println();
-	print((int*) "size: "); printInteger(curr_size); println();
-	print((int*) "next: "); printInteger(curr_next); println();
-
 	mapAndStoreVirtualMemory(getPT(usedContexts), curr, size);
-	mapAndStoreVirtualMemory(getPT(usedContexts), curr+1, curr + (3 + size/WORDSIZE));
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr+1, curr + (4 + size/WORDSIZE));
 	mapAndStoreVirtualMemory(getPT(usedContexts), curr+2, 0);
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr+3, curr_prev);
 
-	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (3 + size/WORDSIZE), curr_size-size);
-	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (3 + size/WORDSIZE+1), curr_next);
-	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (3 + size/WORDSIZE+2), 1);
 
-	return curr + 2;
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (4 + size/WORDSIZE), curr_size-size);
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (4 + size/WORDSIZE+1), curr_next);
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (4 + size/WORDSIZE+2), 1);
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (4 + size/WORDSIZE+3), curr);
+
+	return curr + 4;
 }
 
 
@@ -7007,9 +7087,14 @@ int boot(int argc, int* argv) {
   up_loadBinary(getPT(usedContexts));
 
   freeMemory = brk;
+  //size
   mapAndStoreVirtualMemory(getPT(usedContexts), freeMemory, (VIRTUALMEMORYSIZE - maxBinaryLength) / 2);
+  // next
   mapAndStoreVirtualMemory(getPT(usedContexts), freeMemory+1, 0);
+  // free
   mapAndStoreVirtualMemory(getPT(usedContexts), freeMemory+2, 1);
+  // prev
+  mapAndStoreVirtualMemory(getPT(usedContexts), freeMemory+3, 0);
 
 
   print((int*)"Writing to "); printInteger(brk); println();
