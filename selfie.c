@@ -842,6 +842,7 @@ int SYSCALL_EXIT   = 4001;
 int SYSCALL_READ   = 4003;
 int SYSCALL_WRITE  = 4004;
 int SYSCALL_OPEN   = 4005;
+int SYSCALL_FREE = 5001;
 
 int SYSCALL_MALLOC = 4045;
 
@@ -1018,6 +1019,7 @@ int EXCEPTION_HEAPOVERFLOW       = 4;
 int EXCEPTION_EXIT               = 5;
 int EXCEPTION_TIMER              = 6;
 int EXCEPTION_PAGEFAULT          = 7;
+int EXCEPTION_NO_FREESPACE		 = 8;
 
 int* EXCEPTIONS; // strings representing exceptions
 
@@ -1040,7 +1042,7 @@ int reg_lo = 0; // lo register for multiplication/division
 
 int* pt = (int*) 0; // page table
 
-int brk = 0; // break between code, data, and heap
+int* brk = 0; // break between code, data, and heap
 
 int trap = 0; // flag for creating a trap
 
@@ -1191,7 +1193,7 @@ int* currentContext = (int*) 0; // context currently running
 
 int* usedContexts = (int*) 0; // doubly-linked list of used contexts
 int* freeContexts = (int*) 0; // singly-linked list of free contexts
-
+int* freeMemory = (int*) 0;
 // ------------------------- INITIALIZATION ------------------------
 
 void resetMicrokernel() {
@@ -4876,6 +4878,27 @@ void implementWrite() {
   }
 }
 
+void emitFree() {
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "free", 0, PROCEDURE, VOID_T, 0, binaryLength);
+
+  emitIFormat(OP_LW, REG_SP, REG_A0, 0); // pointer
+  emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
+
+  emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_FREE);
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
+
+  emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
+}
+
+void implementFree() {
+
+	int* toFree;
+
+	toFree = *(registers+REG_A0);
+
+
+}
+
 void emitOpen() {
   createSymbolTableEntry(LIBRARY_TABLE, (int*) "open", 0, PROCEDURE, INT_T, 0, binaryLength);
 
@@ -4998,9 +5021,81 @@ void emitMalloc() {
   emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
+void traverseFreeSpace(int* curr) {
+	if(curr == (int*) 0) {
+		return;
+	}
+
+	print((int*)"->"); printInteger(curr);
+
+
+	traverseFreeSpace(
+			loadVirtualMemory(getPT(usedContexts),
+					loadVirtualMemory(getPT(usedContexts), curr+1)));
+}
+
+int* findFreeSpace(int size) {
+
+	int* curr;
+	int curr_size;
+	int* curr_next;
+	int curr_free;
+	int actualSize;
+	int i;
+	int cont;
+
+	cont = 1;
+
+	i = 2;
+
+	// We need 2 additional words for the preamble
+	actualSize = size + 3 * WORDSIZE;
+
+	curr = freeMemory;
+
+	while(cont == 1) {
+
+		cont = 0;
+
+		curr_size = loadVirtualMemory(getPT(usedContexts), curr);
+		curr_next = loadVirtualMemory(getPT(usedContexts), curr+1);
+		curr_free = loadVirtualMemory(getPT(usedContexts), curr+2);
+
+		if(curr_free != 1) {
+			cont = 1;
+		}
+
+		if(curr_size < actualSize) {
+			cont = 1;
+		}
+
+		if(cont == 1) {
+			curr = curr_next;
+		}
+	}
+
+	print((int*) "DEBUG"); println();
+	print((int*) "at: "); printInteger(curr); println();
+	print((int*) "size: "); printInteger(curr_size); println();
+	print((int*) "next: "); printInteger(curr_next); println();
+
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr, size);
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr+1, curr + (3 + size/WORDSIZE));
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr+2, 0);
+
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (3 + size/WORDSIZE), curr_size-size);
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (3 + size/WORDSIZE+1), curr_next);
+	mapAndStoreVirtualMemory(getPT(usedContexts), curr + (3 + size/WORDSIZE+2), 1);
+
+	return curr + 2;
+}
+
+
 void implementMalloc() {
   int size;
   int bump;
+  int* freeSpace;
+  int freeSpaceSize;
 
   if (debug_malloc) {
     print(binaryName);
@@ -5017,9 +5112,12 @@ void implementMalloc() {
   if (bump + size >= *(registers+REG_SP))
     throwException(EXCEPTION_HEAPOVERFLOW, 0);
   else {
-    *(registers+REG_V0) = bump;
 
-    brk = bump + size;
+	  //find large enough memory chunk
+	  freeSpace = findFreeSpace(size);
+
+	  //finally return with new memory chunk
+	  *(registers+REG_V0) = freeSpace;
 
     if (debug_malloc) {
       print(binaryName);
@@ -5517,6 +5615,8 @@ void fct_syscall() {
       implementDelete();
     else if (*(registers+REG_V0) == SYSCALL_MAP)
       implementMap();
+    else if (*(registers+REG_V0) == SYSCALL_FREE)
+      implementFree();
     else {
       pc = pc - WORDSIZE;
 
@@ -6611,6 +6711,8 @@ void up_loadBinary(int* table) {
 
     vaddr = vaddr + WORDSIZE;
   }
+
+  brk = (int*) vaddr;
 }
 
 int up_loadString(int* table, int* s, int SP) {
@@ -6903,6 +7005,15 @@ int boot(int argc, int* argv) {
     usedContexts = createContext(initID, selfie_ID(), (int*) 0);
 
   up_loadBinary(getPT(usedContexts));
+
+  freeMemory = brk;
+  mapAndStoreVirtualMemory(getPT(usedContexts), freeMemory, (VIRTUALMEMORYSIZE - maxBinaryLength) / 2);
+  mapAndStoreVirtualMemory(getPT(usedContexts), freeMemory+1, 0);
+  mapAndStoreVirtualMemory(getPT(usedContexts), freeMemory+2, 1);
+
+
+  print((int*)"Writing to "); printInteger(brk); println();
+  print((int*)"Writing to "); printInteger(brk+1); println();
 
   up_loadArguments(getPT(usedContexts), argc, argv);
 
